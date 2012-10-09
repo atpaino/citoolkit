@@ -143,6 +143,28 @@ class MultiLayerPerceptron:
             #Update previous weight arrays
             prev_hidden_weights = curr_hidden_weights
             prev_out_weights = curr_out_weights
+    
+    def predict_class(self, dp):
+        """
+        Accepts an input (feature) vector and returns the class predicted
+        by this MLP
+        """
+        #Compute hidden layer values
+        hidden_vals = [ self.hidden_activation_fn(self.calc_node_output(dp, self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes) ]
+
+        #Compute output layer values
+        output_vals = np.zeros(self.num_output_nodes)
+        max_val_ind = 0 #Keep track of the index of the maximum output value
+        for i in range(0, self.num_output_nodes):
+            #Calculate output value of this node
+            output_vals[i] = self.output_activation_fn(self.calc_node_output(hidden_vals, self.output_weights[i]))
+
+            #Update maximum output value
+            if output_vals[i] > output_vals[max_val_ind]:
+                max_val_ind = i
+
+        #Return the class predicted
+        return max_val_ind
 
     def test_all_sets(self):
         """
