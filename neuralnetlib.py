@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import math
 import random
 
-class MultiLayerPerceptron:
+class mlp:
     """
     A neural network with one hidden layer that includes
     functionality for training and testing a given dataset.
@@ -12,6 +12,9 @@ class MultiLayerPerceptron:
     positive integers.
     Will produce n output nodes where n is the number of classes
     detected in the given data.
+    NOTE: the labels for each datapoint must start at 1 (i.e. a dataset with
+    two classes would have either 1 or 2 for its label). If a 0 is present as a label,
+    the initialization method will just increment the class of each datapoint.
     """
 
     def __init__(self, training_data, validation_data, testing_data, num_hidden_nodes=None, alpha=.0004, beta=.5, weight_init=lambda x,y : np.random.randn(x, y), hidden_activation_fn=lambda x : np.tanh(x), output_activation_fn=lambda x : np.tanh(x), output_upper_threshold=.9, output_lower_threshold=-.9, hidden_activation_fn_deriv=lambda x : 1-np.tanh(x)**2, output_activation_fn_deriv=lambda x : 1-np.tanh(x)**2):
@@ -31,6 +34,13 @@ class MultiLayerPerceptron:
         self.output_lower_threshold = output_lower_threshold
         self.hidden_activation_fn_deriv = hidden_activation_fn_deriv
         self.output_activation_fn_deriv = output_activation_fn_deriv
+
+        #Check to see if there is a 0 for a class label anywhere
+        for dp in training_data + validation_data + testing_data:
+            if dp[-1] == 0:
+                #Increment the label of each datapoint
+                for dp2 in self.training_data + self.validation_data + self.testing_data:
+                    dp2[-1] += 1
 
         #Calculate dimensions of input data
         self.num_input_nodes = int(len(training_data[0])-1)
@@ -55,7 +65,7 @@ class MultiLayerPerceptron:
         self.validation_results = []
         self.testing_results = []
 
-    def do_training(self, max_iterations=100):
+    def do_training(self, max_iterations=100, min_iterations=0, verbose=False):
         """
         Trains the MLP until either the maximum number of iterations
         has been reached or the validation results stop improving
@@ -64,17 +74,18 @@ class MultiLayerPerceptron:
         self.test_all_sets()
 
         for k in range(0, max_iterations):
-            print k, self.validation_results[-1][0]
+            if verbose:
+                print (k+1), self.validation_results[-1][0]
             self.train()
             self.test_all_sets()
 
             #Check to see if the validation set's results did not improve
-            if len(self.validation_results) > 1 and self.validation_results[-1][0] >= self.validation_results[-2][0]:
+            if len(self.validation_results) > 1 and self.validation_results[-1][0] >= self.validation_results[-2][0] and k >= (min_iterations-1):
                 #Validation set has stopped improving, so end training
-                pass
+                break
 
-        #Return the number of iterations it took to converge (if it did at all)
-        return k
+        #Return the maximum classification percentage reached
+        return self.testing_results[-1][1]
 
     def train(self):
         """
@@ -163,6 +174,7 @@ class MultiLayerPerceptron:
             if output_vals[i] > output_vals[max_val_ind]:
                 max_val_ind = i
 
+        #NOTE: if we want the probability per class we could just return floor(output_vals)
         #Return the class predicted
         return max_val_ind
 
@@ -228,7 +240,7 @@ class MultiLayerPerceptron:
             num_total += 1
             
         #Return a tuple of the counters, which represents the results
-        return (total_err/float(2*num_total), num_total, num_correct, confusion_matrix)
+        return (total_err/float(2*num_total), float(num_correct)/num_total, num_total, num_correct, confusion_matrix)
 
     def calc_node_output(self, input_vals, weights):
         """
@@ -248,38 +260,49 @@ class MultiLayerPerceptron:
 
         return output
 
-    def graph_results(self):
+    def graph_results(self, show_graph=False):
         """
         Plots results including graph of errors vs. epoch and 
         confusion matrices for each of the datasets
         """
         #Print out confusion matrices
-        print '\nTraining classification percentage: ', 100.0 * self.training_results[-1][2] / self.training_results[-1][1]
-        print 'Training confusion matrix (size=', self.training_results[-1][1], ')'
-        print self.training_results[-1][3] / self.training_results[-1][1]
+        print '\nTraining classification percentage: ', 100.0 * self.training_results[-1][1]
+        print 'Training confusion matrix (size=', self.training_results[-1][2], ')'
+        print self.training_results[-1][4] / self.training_results[-1][2]
 
-        print '\nValidation classification percentage: ', 100.0 * self.validation_results[-1][2] / self.validation_results[-1][1]
-        print 'Validation confusion matrix (size=', self.validation_results[-1][1], ')'
-        print self.validation_results[-1][3] / self.validation_results[-1][1]
+        print '\nValidation classification percentage: ', 100.0 * self.validation_results[-1][1]
+        print 'Validation confusion matrix (size=', self.validation_results[-1][2], ')'
+        print self.validation_results[-1][4] / self.validation_results[-1][2]
 
-        print '\nTesting classification percentage: ', 100.0 * self.testing_results[-1][2] / self.testing_results[-1][1]
-        print 'Testing confusion matrix (size=', self.testing_results[-1][1], ')'
-        print self.testing_results[-1][3] / self.testing_results[-1][1]
+        print '\nTesting classification percentage: ', 100.0 * self.testing_results[-1][1]
+        print 'Testing confusion matrix (size=', self.testing_results[-1][2], ')'
+        print self.testing_results[-1][4] / self.testing_results[-1][2]
 
-        #Plot training, validation, and testing results
-        plt.plot([ result[0] for result in self.training_results ])
-        plt.plot([ result[0] for result in self.validation_results ])
-        plt.plot([ result[0] for result in self.testing_results ])
+        if show_graph:
+            #Plot training, validation, and testing results
+            plt.plot([ result[0] for result in self.training_results ])
+            plt.plot([ result[0] for result in self.validation_results ])
+            plt.plot([ result[0] for result in self.testing_results ])
 
-        #Add legend
-        plt.legend(('Training', 'Validation', 'Testing'), 'upper center', shadow=True, fancybox=True)
+            #Add legend
+            plt.legend(('Training', 'Validation', 'Testing'), 'upper center', shadow=True, fancybox=True)
 
-        #Add axes labels
-        plt.xlabel('Epoch')
-        plt.ylabel('Mean-squared Error')
+            #Add axes labels
+            plt.xlabel('Epoch')
+            plt.ylabel('Mean-squared Error')
 
-        #Add title to figure
-        plt.title("Learning rate: {}, Momentum: {}, Hidden units: {}".format(self.alpha, self.beta, self.num_hidden_nodes))
+            #Add title to figure
+            plt.title("Learning rate: {}, Momentum: {}, Hidden units: {}".format(self.alpha, self.beta, self.num_hidden_nodes))
 
-        #Display plot
-        plt.show()
+            #Display plot
+            plt.show()
+
+def split_dataset(data):
+    """
+    Splits the dataset up into training, validation, and testing subsets.
+    """
+    training_data = data[:int(len(data)*.7)]
+    validation_data = data[int(len(data)*.7):int(len(data)*.85)]
+    testing_data = data[int(len(data)*.85):]
+
+    return (training_data, validation_data, testing_data)
