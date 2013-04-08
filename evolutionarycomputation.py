@@ -1,3 +1,8 @@
+"""
+This module contains code for various evolutionary computation algorithms, 
+including a generic genetic algorithm along with its chromosome definition.
+"""
+
 import random
 import numpy as np
 import math

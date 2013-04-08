@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import math
 import random
 
-class mlp:
+class MultiLayerPerceptron:
     """
-    A neural network with one hidden layer that includes
-    functionality for training and testing a given dataset.
+    A neural network (trained via backpropagation) with one hidden layer 
+    that includes functionality for training and testing a given dataset.
     The input data can be of any dimension, as long as all the 
     datapoints are floating point numbers and the classes are
     positive integers.
@@ -17,7 +17,14 @@ class mlp:
     the initialization method will just increment the class of each datapoint.
     """
 
-    def __init__(self, training_data, validation_data, testing_data, num_hidden_nodes=None, alpha=.0004, beta=.5, weight_init=lambda x,y : np.random.randn(x, y), hidden_activation_fn=lambda x : np.tanh(x), output_activation_fn=lambda x : np.tanh(x), output_upper_threshold=.9, output_lower_threshold=-.9, hidden_activation_fn_deriv=lambda x : 1-np.tanh(x)**2, output_activation_fn_deriv=lambda x : 1-np.tanh(x)**2):
+    def __init__(self, training_data, validation_data, testing_data, 
+            num_hidden_nodes=None, alpha=.0004, beta=.5, 
+            weight_init=lambda x,y : np.random.randn(x, y), 
+            hidden_activation_fn=lambda x : np.tanh(x), 
+            output_activation_fn=lambda x : np.tanh(x), 
+            output_upper_threshold=.9, output_lower_threshold=-.9, 
+            hidden_activation_fn_deriv=lambda x : 1-np.tanh(x)**2, 
+            output_activation_fn_deriv=lambda x : 1-np.tanh(x)**2):
         """
         Constructor for the neural net. Sets various user-defined
         options, or to defaults if they are not given.
@@ -80,7 +87,9 @@ class mlp:
             self.test_all_sets()
 
             #Check to see if the validation set's results did not improve
-            if len(self.validation_results) > 1 and self.validation_results[-1][0] >= self.validation_results[-2][0] and k >= (min_iterations-1):
+            if (len(self.validation_results) > 1 and 
+                    self.validation_results[-1][0] >= self.validation_results[-2][0] 
+                    and k >= (min_iterations-1)):
                 #Validation set has stopped improving, so end training
                 break
 
@@ -108,11 +117,13 @@ class mlp:
             #Perform forward computation
 
             #Calculate hidden layer values
-            v_hidden = [ self.calc_node_output(dp[0:-1], self.hidden_weights[i]) for i in range(0, self.num_hidden_nodes) ]
+            v_hidden = [ self.calc_node_output(dp[0:-1], self.hidden_weights[i])
+                    for i in range(0, self.num_hidden_nodes) ]
             y_hidden = [ self.hidden_activation_fn(v) for v in v_hidden ]
 
             #Calculate output layer values
-            v_out = [ self.calc_node_output(y_hidden, self.output_weights[i]) for i in range(0, self.num_output_nodes) ]
+            v_out = [ self.calc_node_output(y_hidden, self.output_weights[i]) 
+                    for i in range(0, self.num_output_nodes) ]
             y_out = [ self.output_activation_fn(v) for v in v_out ]
             
             #Allocate error array
@@ -128,8 +139,12 @@ class mlp:
                     err[i] = self.output_lower_threshold - y_out[i]
                     
             #Calculate gradients
-            output_gradients = [ err[i]*self.output_activation_fn_deriv(v_out[i]) for i in range(0, self.num_output_nodes) ]
-            hidden_gradients = [ self.hidden_activation_fn_deriv(v_hidden[i])*sum([ output_gradients[j]*self.output_weights[j][i] for j in range(0, self.num_output_nodes) ]) for i in range(0, self.num_hidden_nodes) ]
+            output_gradients = [err[i]*self.output_activation_fn_deriv(v_out[i]) 
+                    for i in range(0, self.num_output_nodes)]
+            hidden_gradients = [self.hidden_activation_fn_deriv(v_hidden[i])*
+                    sum([output_gradients[j]*self.output_weights[j][i] 
+                    for j in range(0, self.num_output_nodes)]) 
+                    for i in range(0, self.num_hidden_nodes)]
 
             #Save current weights so we can update previous weights arrays later
             curr_hidden_weights = np.array(self.hidden_weights)
@@ -138,18 +153,30 @@ class mlp:
             #Adjust hidden weights
             for j in range(0, self.num_hidden_nodes):
                 for i in range(0, self.num_input_nodes):
-                    self.hidden_weights[j][i] = curr_hidden_weights[j][i] + self.beta*(curr_hidden_weights[j][i] - prev_hidden_weights[j][i]) + self.alpha*hidden_gradients[j]*dp[i]
+                    self.hidden_weights[j][i] = (curr_hidden_weights[j][i] +
+                            self.beta*(curr_hidden_weights[j][i] - 
+                                prev_hidden_weights[j][i]) + 
+                            self.alpha*hidden_gradients[j]*dp[i])
 
                 #Update weight for bias term
-                self.hidden_weights[j][-1] = curr_hidden_weights[j][-1] + self.beta*(curr_hidden_weights[j][-1] - prev_hidden_weights[j][-1]) + self.alpha*hidden_gradients[j]
+                self.hidden_weights[j][-1] = (curr_hidden_weights[j][-1] + 
+                        self.beta*(curr_hidden_weights[j][-1] - 
+                            prev_hidden_weights[j][-1]) + 
+                        self.alpha*hidden_gradients[j])
 
             #Adjust output weights
             for j in range(0, self.num_output_nodes):
                 for i in range(0, self.num_hidden_nodes):
-                    self.output_weights[j][i] = curr_out_weights[j][i] + self.beta*(curr_out_weights[j][i] - prev_out_weights[j][i]) + self.alpha*output_gradients[j]*y_hidden[i]
+                    self.output_weights[j][i] = (curr_out_weights[j][i] + 
+                            self.beta*(curr_out_weights[j][i] - 
+                                prev_out_weights[j][i]) + 
+                            self.alpha*output_gradients[j]*y_hidden[i])
 
                 #Update weight for bias term
-                self.output_weights[j][-1] = curr_out_weights[j][-1] + self.beta*(curr_out_weights[j][-1] - prev_out_weights[j][-1]) + self.alpha*output_gradients[j]
+                self.output_weights[j][-1] = (curr_out_weights[j][-1] + 
+                        self.beta*(curr_out_weights[j][-1] - 
+                            prev_out_weights[j][-1]) + 
+                        self.alpha*output_gradients[j])
 
             #Update previous weight arrays
             prev_hidden_weights = curr_hidden_weights
@@ -161,14 +188,16 @@ class mlp:
         by this MLP
         """
         #Compute hidden layer values
-        hidden_vals = [ self.hidden_activation_fn(self.calc_node_output(dp, self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes) ]
+        hidden_vals = [self.hidden_activation_fn(self.calc_node_output(dp, 
+            self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes)]
 
         #Compute output layer values
         output_vals = np.zeros(self.num_output_nodes)
         max_val_ind = 0 #Keep track of the index of the maximum output value
         for i in range(0, self.num_output_nodes):
             #Calculate output value of this node
-            output_vals[i] = self.output_activation_fn(self.calc_node_output(hidden_vals, self.output_weights[i]))
+            output_vals[i] = self.output_activation_fn(self.calc_node_output(
+                hidden_vals, self.output_weights[i]))
 
             #Update maximum output value
             if output_vals[i] > output_vals[max_val_ind]:
@@ -201,7 +230,8 @@ class mlp:
         #Iterate through each point in this dataset
         for dp in data:
             #Compute hidden layer values
-            hidden_vals = [ self.hidden_activation_fn(self.calc_node_output(dp[0:-1], self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes) ]
+            hidden_vals = [ self.hidden_activation_fn(self.calc_node_output(
+                dp[0:-1], self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes) ]
 
             #Create flag to check if this datapoint was correctly matched
             correct = True
@@ -212,7 +242,8 @@ class mlp:
             max_val_ind = 0 #Keep track of the index of the maximum output value
             for i in range(0, self.num_output_nodes):
                 #Calculate output value of this node
-                output_vals[i] = self.output_activation_fn(self.calc_node_output(hidden_vals, self.output_weights[i]))
+                output_vals[i] = self.output_activation_fn(self.calc_node_output(
+                    hidden_vals, self.output_weights[i]))
 
                 #Calculate error in output layer
                 if (i+1) == dp[-1]:
@@ -240,7 +271,8 @@ class mlp:
             num_total += 1
             
         #Return a tuple of the counters, which represents the results
-        return (total_err/float(2*num_total), float(num_correct)/num_total, num_total, num_correct, confusion_matrix)
+        return (total_err/float(2*num_total), float(num_correct)/num_total, 
+                num_total, num_correct, confusion_matrix)
 
     def calc_node_output(self, input_vals, weights):
         """
@@ -285,17 +317,30 @@ class mlp:
             plt.plot([ result[0] for result in self.testing_results ])
 
             #Add legend
-            plt.legend(('Training', 'Validation', 'Testing'), 'upper center', shadow=True, fancybox=True)
+            plt.legend(('Training', 'Validation', 'Testing'), 'upper center', 
+                    shadow=True, fancybox=True)
 
             #Add axes labels
             plt.xlabel('Epoch')
             plt.ylabel('Mean-squared Error')
 
             #Add title to figure
-            plt.title("Learning rate: {}, Momentum: {}, Hidden units: {}".format(self.alpha, self.beta, self.num_hidden_nodes))
+            plt.title("Learning rate: {}, Momentum: {}, Hidden units: {}".format(
+                self.alpha, self.beta, self.num_hidden_nodes))
 
             #Display plot
             plt.show()
+
+class NeuralFusionClassifier:
+    """
+    A "meta" classifier that trains a set of neural nets using different
+    parameters (number of nodes, features used) and then trains one more
+    neural net that fuses the output from the neural net set. The feature set
+    given to the fusing neural net includes the confidence values from each
+    neural net along with the complete original feature vector (in order to
+    allow for context-awareness).
+    """
+    pass
 
 def split_dataset(data):
     """
