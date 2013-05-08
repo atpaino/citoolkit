@@ -5,7 +5,8 @@ import random
 
 class MultiLayerPerceptron:
     """
-    A neural network (trained via backpropagation) with one hidden layer 
+    A neural network (trained via backpropagation) with a specifiable number of
+    hidden layers, each with a specifiable number of nodes.
     that includes functionality for training and testing a given dataset.
     The input data can be of any dimension, as long as all the 
     datapoints are floating point numbers and the classes are
@@ -17,55 +18,61 @@ class MultiLayerPerceptron:
     the initialization method will just increment the class of each datapoint.
     """
 
-    def __init__(self, training_data, validation_data, testing_data, 
-            num_hidden_nodes=None, alpha=.0004, beta=.5, 
+    def __init__(self, training_feats, training_labels,
+            validation_feats, validation_labels, testing_data, testing_labels,
+            alpha=.0004, beta=.5, hidden_layer_structure=None,
             weight_init=lambda x,y : np.random.randn(x, y), 
-            hidden_activation_fn=lambda x : np.tanh(x), 
-            output_activation_fn=lambda x : np.tanh(x), 
+            activation_fn=lambda x : np.tanh(x), 
             output_upper_threshold=.9, output_lower_threshold=-.9, 
-            hidden_activation_fn_deriv=lambda x : 1-np.tanh(x)**2, 
-            output_activation_fn_deriv=lambda x : 1-np.tanh(x)**2):
+            activation_fn_deriv=lambda x : 1-np.tanh(x)**2, 
         """
         Constructor for the neural net. Sets various user-defined
         options, or to defaults if they are not given.
+        Note: assumes the labels are integers starting from 0.
+        Parameters:
+            alpha := learning rate
+            beta := momentum rate
+            hidden_layer_structure := np array specifying number of hidden
+                nodes in each hidden layer, where len(hidden_layer_structure)
+                is the number of hidden layers.
+            weight_init := function that returns matrix of random values,
+                where the size of the matrix is the input argument set
         """
-        self.hidden_activation_fn = hidden_activation_fn
-        self.output_activation_fn = output_activation_fn
-        self.num_hidden_nodes = num_hidden_nodes
-        self.training_data = training_data
-        self.validation_data = validation_data
-        self.testing_data = testing_data
         self.alpha = alpha
         self.beta = beta
+        self.hidden_layer_structure = hidden_layer_structure
+        self.activation_fn = activation_fn
+        self.activation_fn_deriv = activation_fn_deriv
+        self.training_feats = np.array(training_feats)
+        self.validation_feats = np.array(validation_feats)
+        self.testing_feats = np.array(testing_feats)
+        self.training_labels = np.array(training_labels)
+        self.validation_labels = np.array(validation_labels)
+        self.testing_labels = np.array(testing_labels)
         self.output_upper_threshold = output_upper_threshold
         self.output_lower_threshold = output_lower_threshold
-        self.hidden_activation_fn_deriv = hidden_activation_fn_deriv
-        self.output_activation_fn_deriv = output_activation_fn_deriv
 
-        #Check to see if there is a 0 for a class label anywhere
-        for dp in training_data + validation_data + testing_data:
-            if dp[-1] == 0:
-                #Increment the label of each datapoint
-                for dp2 in self.training_data + self.validation_data + self.testing_data:
-                    dp2[-1] += 1
-
-        #Calculate dimensions of input data
-        self.num_input_nodes = int(len(training_data[0])-1)
-        self.num_output_nodes = 1
-        for datapoint in training_data:
-            if datapoint[-1] > self.num_output_nodes:
-                self.num_output_nodes = datapoint[-1]
-        self.num_output_nodes = int(self.num_output_nodes)
+        #Calculate number of classes of input data
+        self.num_input_nodes = len(training_feats[0])
+        self.num_output_nodes = int(training_labels.max()
         
         #Default the number of hidden nodes to one more than the
-        #number of input nodes
-        if self.num_hidden_nodes is None:
-            self.num_hidden_nodes = self.num_input_nodes+1
-        self.num_hidden_nodes = int(self.num_hidden_nodes)
+        #number of input nodes, and just one hidden layer
+        if hidden_layer_structure is None:
+            self.hidden_layer_structure = np.array(self.num_input_nodes+1)
 
-        #Create initial weights
-        self.hidden_weights = weight_init(self.num_hidden_nodes, self.num_input_nodes+1)
-        self.output_weights = weight_init(self.num_output_nodes, self.num_hidden_nodes+1)
+        #Create array containing number of nodes for each layer
+        self.layer_sizes = np.insert(self.hidden_layer_structure, 0, 
+                self.num_input_nodes)
+        self.layer_sizes = np.append(self.layer_sizes, self.num_output_nodes)
+        self.num_layers = len(self.layer_sizes)
+
+        #Initialize weights s.t. weights[i,j,k] is the weight from the kth node
+        #in layer i to the jth node in layer i+1. 1 is added to layer_sizes[i]
+        #here to account for the weight from the bias (1 for each node/layer).
+        self.weights = np.array([weight_init(int(self.layer_sizes[i+1]),
+                                 int(self.layer_sizes[i]+1))
+                                 for i in xrange(self.num_layers-1)])
         
         #Declare results lists
         self.training_results = []
@@ -96,6 +103,7 @@ class MultiLayerPerceptron:
         #Return the maximum classification percentage reached
         return self.testing_results[-1][1]
 
+    #TODO not refactored yet
     def train(self):
         """
         Performs on-line training of the MLP using backpropagation algorithm
@@ -182,40 +190,34 @@ class MultiLayerPerceptron:
             prev_hidden_weights = curr_hidden_weights
             prev_out_weights = curr_out_weights
     
-    def predict_class(self, dp):
+    def predict_proba(self, dp):
         """
-        Accepts an input (feature) vector and returns the class predicted
-        by this MLP
+        Accepts an input (feature) vector and returns an array containing the
+        output from each output node.
         """
-        #Compute hidden layer values
-        hidden_vals = [self.hidden_activation_fn(self.calc_node_output(dp, 
-            self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes)]
+        #Initialize next_layer with feature vector
+        next_layer = dp
 
-        #Compute output layer values
-        output_vals = np.zeros(self.num_output_nodes)
-        max_val_ind = 0 #Keep track of the index of the maximum output value
-        for i in range(0, self.num_output_nodes):
-            #Calculate output value of this node
-            output_vals[i] = self.output_activation_fn(self.calc_node_output(
-                hidden_vals, self.output_weights[i]))
+        for i in xrange(self.num_layers-1):
+            #Calculate inputs to layer i+1. 1 is appended to the feature
+            #vector to represent the bias. Applies activation fn after.
+            next_layer = self.activation_fn(np.matrix(np.append(next_layer,
+                1.0))*np.matrix(self.weights[i]).transpose())
 
-            #Update maximum output value
-            if output_vals[i] > output_vals[max_val_ind]:
-                max_val_ind = i
-
-        #NOTE: if we want the probability per class we could just return floor(output_vals)
-        #Return the class predicted
-        return max_val_ind
+        return next_layer
 
     def test_all_sets(self):
         """
         Convenience method to test all three datasets on the MLP
         """
-        self.training_results.append(self.test_data(self.training_data))
-        self.validation_results.append(self.test_data(self.validation_data))
-        self.testing_results.append(self.test_data(self.testing_data))
+        self.training_results.append(self.test_data(self.training_feats, 
+            self.training_labels))
+        self.validation_results.append(self.test_data(self.validation_feats,
+            self.validation_labels))
+        self.testing_results.append(self.test_data(self.testing_feats,
+            self.testing_labels))
 
-    def test_data(self, data):
+    def test_data(self, data, labels):
         """
         Tests the given data against the MLP and returns the results
         """
@@ -228,43 +230,34 @@ class MultiLayerPerceptron:
         confusion_matrix = np.zeros([self.num_output_nodes, self.num_output_nodes])
 
         #Iterate through each point in this dataset
-        for dp in data:
-            #Compute hidden layer values
-            hidden_vals = [ self.hidden_activation_fn(self.calc_node_output(
-                dp[0:-1], self.hidden_weights[i])) for i in range(0, self.num_hidden_nodes) ]
-
-            #Create flag to check if this datapoint was correctly matched
-            correct = True
-
+        for i, dp in enumerate(data):
             #Compute output layer values
-            output_vals = np.zeros(self.num_output_nodes)
+            outputs = self.predict_proba(dp)
             err = np.zeros(self.num_output_nodes)
-            max_val_ind = 0 #Keep track of the index of the maximum output value
-            for i in range(0, self.num_output_nodes):
-                #Calculate output value of this node
-                output_vals[i] = self.output_activation_fn(self.calc_node_output(
-                    hidden_vals, self.output_weights[i]))
+            #Keep track of the index of the maximum output value
+            max_val_ind = 0
 
+            for i in xrange(0, self.num_output_nodes):
                 #Calculate error in output layer
                 if (i+1) == dp[-1]:
                     #Desired output is upper bound
-                    err[i] = (self.output_upper_threshold - output_vals[i])**2
+                    err[i] = (self.output_upper_threshold - outputs[i])**2
                 else:
                     #Desired output is lower bound
-                    err[i] = (self.output_lower_threshold - output_vals[i])**2
+                    err[i] = (self.output_lower_threshold - outputs[i])**2
                     
                 #Update maximum output value
-                if output_vals[i] > output_vals[max_val_ind]:
+                if outputs[i] > outputs[max_val_ind]:
                     max_val_ind = i
 
             #Check if this value was classified correctly
-            correct = dp[-1]-1 == max_val_ind
+            correct = labels[i] == max_val_ind
 
             #Update aggregate error
-            total_err += sum(err)
+            total_err += err.sum()
             
             #Update confusion matrix
-            confusion_matrix[max_val_ind][dp[-1]-1] += 1
+            confusion_matrix[max_val_ind][labels[i]] += 1
 
             #Increment counters
             num_correct += 1 if correct else 0
